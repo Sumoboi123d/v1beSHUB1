@@ -96,7 +96,7 @@ else
 
     local validKeys = {
         ["ABC123"] = "6113468631", -- Replace with actual UserIds
-        ["VIP999"] = "4642182892",
+        ["VIP999"] = "3908093170",
     }
 
     -- Function to verify key
