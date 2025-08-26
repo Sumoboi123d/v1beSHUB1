@@ -1,1 +1,1186 @@
+-- Paste this script into your executor and run
+-- Note: This is a local-only approach, not secure for sensitive environments
+
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local UserId = tostring(Player.UserId)
+
+-- Create a persistent storage (using local file if executor supports it)
+local verified = false
+
+-- Simple persistent check (using a saved value if executor supports it)
+-- If your executor supports setting/getting local files, use this:
+local success, savedVerified = pcall(function()
+    return readfile("verified_"..UserId..".txt")
+end)
+
+if success and savedVerified == "true" then
+    verified = true
+end
+
+if verified then
+    print("Already verified. Proceeding...")
+    -- Player is verified; continue with your script
+else
+    -- GUI setup
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Parent = Player:WaitForChild("PlayerGui")
+    ScreenGui.Name = "KeyGui"
+
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(0, 320, 0, 180)
+    Frame.Position = UDim2.new(0.5, -160, 0.5, -90)
+    Frame.BackgroundColor3 = Color3.fromRGB(28,28,33)
+    Frame.Parent = ScreenGui
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0,10)
+    UICorner.Parent = Frame
+
+    local UIStroke = Instance.new("UIStroke")
+    UIStroke.Thickness = 2
+    UIStroke.Color = Color3.fromRGB(235,64,52)
+    UIStroke.Parent = Frame
+
+    local Header = Instance.new("TextLabel")
+    Header.Size = UDim2.new(1, 0, 0, 30)
+    Header.Position = UDim2.new(0, 0, 0, 10)
+    Header.Text = "Enter Access Key"
+    Header.Font = Enum.Font.GothamBold
+    Header.TextSize = 18
+    Header.TextColor3 = Color3.fromRGB(235,235,235)
+    Header.BackgroundTransparency = 1
+    Header.TextXAlignment = Enum.TextXAlignment.Center
+    Header.Parent = Frame
+
+    local Input = Instance.new("TextBox")
+    Input.Size = UDim2.new(0, 220, 0, 40)
+    Input.Position = UDim2.new(0.5, 0, 0.5, -20)
+    Input.AnchorPoint = Vector2.new(0.5, 0.5)
+    Input.PlaceholderText = "Enter Key..."
+    Input.Text = ""
+    Input.ClearTextOnFocus = false
+    Input.Font = Enum.Font.Gotham
+    Input.TextSize = 16
+    Input.TextColor3 = Color3.new(1,1,1)
+    Input.BackgroundColor3 = Color3.fromRGB(70,70,78)
+    Input.TextXAlignment = Enum.TextXAlignment.Center
+    Input.Parent = Frame
+    local c1 = Instance.new("UICorner", Input)
+    c1.CornerRadius = UDim.new(0,8)
+
+    local Submit = Instance.new("TextButton")
+    Submit.Size = UDim2.new(0, 140, 0, 36)
+    Submit.Position = UDim2.new(0.5, 0, 0.5, 40)
+    Submit.AnchorPoint = Vector2.new(0.5, 0.5)
+    Submit.Text = "Submit"
+    Submit.Font = Enum.Font.GothamBold
+    Submit.TextSize = 16
+    Submit.TextColor3 = Color3.new(1,1,1)
+    Submit.BackgroundColor3 = Color3.fromRGB(235,64,52)
+    Submit.TextXAlignment = Enum.TextXAlignment.Center
+    Submit.Parent = Frame
+    local c2 = Instance.new("UICorner", Submit)
+    c2.CornerRadius = UDim.new(0,8)
+
+    local Status = Instance.new("TextLabel")
+    Status.Size = UDim2.new(1, 0, 0, 24)
+    Status.Position = UDim2.new(0, 0, 1, -28)
+    Status.Text = ""
+    Status.Font = Enum.Font.Gotham
+    Status.TextSize = 14
+    Status.TextColor3 = Color3.fromRGB(255, 100, 100)
+    Status.BackgroundTransparency = 1
+    Status.TextXAlignment = Enum.TextXAlignment.Center
+    Status.Parent = Frame
+
+    local validKeys = {
+        ["ABC123"] = "6113468631", -- Replace with actual UserIds
+        ["VIP999"] = "987654321",
+    }
+
+    -- Function to verify key
+    local function verifyKey()
+        local key = Input.Text
+        local expectedUserId = validKeys[key]
+        if expectedUserId and expectedUserId == UserId then
+            -- Save verification locally
+            local success2, err2 = pcall(function()
+                writefile("verified_"..UserId..".txt", "true")
+            end)
+            if success2 then
+                -- Remove GUI and proceed
+                if ScreenGui then
+                    ScreenGui:Destroy()
+                end
+                print("Verified! You won't need to re-enter the key.")
+                verified = true
+            end
+        else
+            Status.Text = "Invalid Key or Not for You."
+        end
+    end
+
+    Submit.MouseButton1Click:Connect(function()
+        verifyKey()
+    end)
+end
+
+-- Your main script continues here after verification
+if verified then
+    print("Proceed with your script here.")
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+_G = _G or {}
+
+-- Config
+local NAME_TEXT_SIZE = 14
+local NAME_MAX_DISTANCE = 600
+local DISTANCE_TICK = 0.6
+local PROXY_TICK = 0.25
+local BR_WATCHDOG_TICK = 1.4
+
+-- State
+local ESPEnabled = false
+local PerPlayer = {}
+local Connections = {}
+local PROXY_FOLDER = workspace:FindFirstChild("_ESP_ProxyRigs") or Instance.new("Folder")
+PROXY_FOLDER.Name = "_ESP_ProxyRigs"
+PROXY_FOLDER.Parent = workspace
+
+-- Base ESP State
+local BaseESPEnabled = false
+local BaseESPConnections = {}
+local BaseESPGuis = {}
+
+-- Brainrot ESP State (default OFF)
+local BR_GUI_NAME = "EarningsESP"
+local BR_VALUE_NAMES = {
+    "MoneyPerSecond","CashPerSecond","EarningsPerSecond","IncomePerSecond","PerSecond","CashRate","Rate","PerSec","IncomeRate",
+}
+local BR_PER_MINUTE_NAMES = { "MoneyPerMinute","CashPerMinute","EarningsPerMinute","IncomePerMinute" }
+local BR_EXCLUDE_LABEL_NAMES = { RemainingTime=true, Timer=true, Countdown=true, TimeLeft=true }
+local BR_EXCLUDE_MODEL_SUBSTR = { "timer","time","countdown","remainingtime","clock" }
+
+local BR_candidatesByRoot, BR_candidateList, BR_currentTop = {}, {}, nil
+local BR_highlight, BR_espByPart = nil, {}
+local BR_Enabled = false
+local BR_initialized = false
+local BR_run = false
+local BR_globalConns = {}
+local BR_watchThread = nil
+local BR_recomputeQueued, BR_nextRecomputeAt = false, 0
+local BR_RECOMPUTE_DELAY = 0.12
+local BR_STALE_TTL = 8.0
+local BR_visualsArmed = false -- prevents the initial flicker
+
+local OWNER_ATTR_UID_KEYS  = { "OwnerUserId","OwnerId","UserId","PlayerUserId","PlotOwnerUserId" }
+local OWNER_ATTR_NAME_KEYS = { "Owner","OwnerName","PlayerName","PlotOwner" }
+local OWNER_OBJ_KEYS       = { "Owner","Player","OwnerPlayer","PlotOwner" }
+
+-- UI Setup
+local gui = Instance.new("ScreenGui")
+gui.Name = "ESPCompactGui"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local panel = Instance.new("Frame")
+panel.Name = "Panel"
+-- Bigger panel to fit larger buttons and header
+panel.Size = UDim2.fromOffset(300, 230)
+panel.Position = UDim2.fromOffset(24, 120)
+panel.BackgroundColor3 = Color3.fromRGB(28,28,33)
+panel.BorderSizePixel = 0
+panel.Active = true
+panel.Selectable = true
+panel.Parent = gui
+
+do
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0,10)
+    c.Parent = panel
+    local s = Instance.new("UIStroke")
+    s.Thickness = 2
+    s.Color = Color3.fromRGB(235,64,52)
+    s.Parent = panel
+end
+
+local header = Instance.new("TextLabel")
+header.Name = "Header"
+header.BackgroundTransparency = 1
+-- Slightly taller header for bigger text
+header.Size = UDim2.new(1, 0, 0, 26)
+header.Position = UDim2.fromOffset(0, 6)
+header.Text = "V1BES HUB v2"
+header.Font = Enum.Font.GothamBold
+header.TextSize = 18
+header.TextXAlignment = Enum.TextXAlignment.Center
+header.TextColor3 = Color3.fromRGB(235,235,235)
+header.Parent = panel
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "Close"
+closeBtn.Size = UDim2.fromOffset(22, 22)
+closeBtn.Position = UDim2.new(1, -26, 0, 6)
+closeBtn.BackgroundColor3 = Color3.fromRGB(20,20,20)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+closeBtn.AutoButtonColor = true
+closeBtn.Parent = panel
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = closeBtn end
+
+local reopenDot = Instance.new("TextButton")
+reopenDot.Name = "VOpen"
+reopenDot.Size = UDim2.fromOffset(36, 36)
+reopenDot.Position = panel.Position
+reopenDot.BackgroundColor3 = Color3.fromRGB(0,0,0)
+reopenDot.Text = "V"
+reopenDot.Font = Enum.Font.GothamBlack
+reopenDot.TextSize = 20
+reopenDot.TextColor3 = Color3.fromRGB(235,64,52)
+reopenDot.Visible = false
+reopenDot.Parent = gui
+do
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = reopenDot
+    local s = Instance.new("UIStroke"); s.Thickness = 1; s.Color = Color3.fromRGB(235,64,52); s.Transparency = 0.15; s.Parent = reopenDot
+end
+
+closeBtn.MouseButton1Click:Connect(function()
+    reopenDot.Position = panel.Position
+    panel.Visible = false
+    reopenDot.Visible = true
+end)
+reopenDot.MouseButton1Click:Connect(function()
+    panel.Visible = true
+    reopenDot.Visible = false
+end)
+
+-- Buttons
+local function newBtn(name, parent)
+    local b = Instance.new("TextButton")
+    b.Name = name
+    b.AutoButtonColor = true
+    -- Bigger button size to fit longer text
+    b.Size = UDim2.fromOffset(120, 36)
+    b.BackgroundColor3 = Color3.fromRGB(70,70,78)
+    b.BorderSizePixel = 0
+    b.TextColor3 = Color3.new(1,1,1)
+    b.Font = Enum.Font.GothamSemibold
+    b.TextSize = 16
+    b.TextWrapped = true -- prevent clipping on small screens
+    b.Text = name .. ": OFF"
+    b.Parent = parent
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = b
+    return b
+end
+
+local function setBtn(b, on)
+    b.BackgroundColor3 = on and Color3.fromRGB(235,64,52) or Color3.fromRGB(70,70,78)
+    b.Text = b.Name .. ": " .. (on and "ON" or "OFF")
+end
+
+-- Button Layout
+local buttonContainer = Instance.new("Frame")
+buttonContainer.BackgroundTransparency = 1
+buttonContainer.Position = UDim2.fromOffset(10, 36)
+-- Wider/taller container for larger grid
+buttonContainer.Size = UDim2.fromOffset(280, 150)
+buttonContainer.Parent = panel
+
+local grid = Instance.new("UIGridLayout")
+-- Larger grid cell to match bigger buttons
+grid.CellSize = UDim2.fromOffset(120, 36)
+grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+grid.VerticalAlignment = Enum.VerticalAlignment.Center
+grid.SortOrder = Enum.SortOrder.LayoutOrder
+grid.CellPadding = UDim2.fromOffset(8, 8)
+grid.Parent = buttonContainer
+
+local btnESP = newBtn("Player ESP", buttonContainer); btnESP.LayoutOrder = 1
+local btnSteal = newBtn("Steal", buttonContainer); btnSteal.LayoutOrder = 2
+local btnBaseESP = newBtn("Base ESP", buttonContainer); btnBaseESP.LayoutOrder = 3
+local btnAimbot = newBtn("Aimbot", buttonContainer); btnAimbot.LayoutOrder = 4
+-- Renamed button to "Brainrot ESP"
+local btnBrainrot = newBtn("Brainrot ESP", buttonContainer); btnBrainrot.LayoutOrder = 5
+
+local note = Instance.new("TextLabel")
+note.BackgroundTransparency = 1
+-- Full-width label, centered text, updated copy
+note.Size = UDim2.new(1, -12, 0, 30)
+note.Position = UDim2.new(0, 6, 1, -40)
+note.TextWrapped = true
+note.Text = "(Steal must be toggled on before stealing)"
+note.Font = Enum.Font.Gotham
+note.TextSize = 13
+note.TextXAlignment = Enum.TextXAlignment.Center -- center note
+note.TextTransparency = 0.2
+note.TextColor3 = Color3.fromRGB(200,200,210)
+note.Parent = panel
+
+-- Drag
+do
+    local dragging, dragOffset = false, Vector2.zero
+    local function clamp(px, py)
+        local vp, sz = Camera.ViewportSize, panel.AbsoluteSize
+        return math.clamp(px, 0, math.max(0, vp.X - sz.X)), math.clamp(py, 0, math.max(0, vp.Y - sz.Y))
+    end
+    panel.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragOffset = input.Position - panel.AbsolutePosition
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local x, y = clamp(input.Position.X - dragOffset.X, input.Position.Y - dragOffset.Y)
+            panel.Position = UDim2.fromOffset(x, y)
+        end
+    end)
+end
+
+-- ESP Core
+local CORE_NAMES = {"Head","UpperTorso","LowerTorso","Torso","HumanoidRootPart"}
+
+local function collectCoreParts(character)
+    local core = {}
+    for _, n in ipairs(CORE_NAMES) do
+        local p = character:FindFirstChild(n)
+        if p and p:IsA("BasePart") then table.insert(core, p) end
+    end
+    return core
+end
+
+local function charInvisible(coreParts)
+    for _, part in ipairs(coreParts) do
+        if part.Parent and (part.LocalTransparencyModifier or 0) < 0.95 and (part.Transparency or 0) < 0.95 then
+            return false
+        end
+    end
+    return true
+end
+
+local function makeNameBillboard(head, player)
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "ESP_NameTag"
+    bb.Size = UDim2.new(0, 140, 0, 22)
+    bb.StudsOffset = Vector3.new(0, 3, 0)
+    bb.AlwaysOnTop = true
+    bb.MaxDistance = NAME_MAX_DISTANCE
+    bb.Parent = head
+
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(1,0,1,0)
+    label.TextColor3 = Color3.fromRGB(255,255,255)
+    label.TextStrokeColor3 = Color3.fromRGB(10,10,10)
+    label.TextStrokeTransparency = 0.45
+    label.Font = Enum.Font.GothamSemibold
+    label.TextSize = NAME_TEXT_SIZE
+    label.Text = player.DisplayName ~= "" and player.DisplayName or player.Name
+    label.Parent = bb
+    return bb, label
+end
+
+local function createProxyRigFor(character)
+    local proxy = Instance.new("Model")
+    proxy.Name = "_ESPProxy_" .. character:GetDebugId():gsub("%W","")
+    proxy.Parent = PROXY_FOLDER
+    local map = {}
+    for _, src in ipairs(collectCoreParts(character)) do
+        local p = Instance.new("Part")
+        p.Anchored,p.CanCollide,p.CanTouch,p.CanQuery,p.CastShadow = true,false,false,false,false
+        p.Size, p.CFrame, p.Transparency = src.Size, src.CFrame, 0.999
+        p.Name = "Proxy_" .. src.Name
+        p.Parent = proxy
+        map[src] = p
+    end
+    return proxy, map
+end
+
+local function setProxyActive(pkt, active)
+    pkt.ProxyActive = active
+    if active and (not pkt.ProxyRig or not pkt.ProxyRig.Parent) then
+        pkt.ProxyRig, pkt.ProxyMap = createProxyRigFor(pkt.Character)
+    end
+end
+
+local function cleanupPlayer(player)
+    if Connections[player] then for _, c in ipairs(Connections[player]) do pcall(function() c:Disconnect() end) end end
+    local pkt = PerPlayer[player]
+    if not pkt then return end
+    if pkt.Highlight then pkt.Highlight:Destroy() end
+    if pkt.Billboard then pkt.Billboard:Destroy() end
+    if pkt.ProxyRig then pkt.ProxyRig:Destroy() end
+    PerPlayer[player] = nil
+end
+
+local function attachForCharacter(player, character)
+    if player == LocalPlayer then return end
+    local head = character:WaitForChild("Head", 3)
+    local hrp = character:WaitForChild("HumanoidRootPart", 3)
+    if not head or not hrp then return end
+
+    local hl = Instance.new("Highlight")
+    hl.Name = "ESP_Highlight"
+    hl.Adornee = character
+    hl.FillColor = Color3.fromRGB(65,105,225)
+    hl.FillTransparency = 0.10
+    hl.OutlineColor = Color3.fromRGB(65,105,225)
+    hl.OutlineTransparency = 0.15
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Enabled = ESPEnabled
+    hl.Parent = character
+
+    local bb, label = makeNameBillboard(head, player)
+    if not ESPEnabled then bb.Parent = nil end
+
+    PerPlayer[player] = {
+        Highlight=hl, Billboard=bb, Label=label, Head=head, HRP=hrp, Character=character,
+        ProxyRig=nil, ProxyMap=nil, ProxyActive=false, CoreParts=collectCoreParts(character),
+        LastShownMeters=nil,
+    }
+end
+
+local function enableESPForPlayer(player, enable)
+    local pkt = PerPlayer[player]
+    if not pkt then return end
+    if pkt.Highlight then pkt.Highlight.Enabled = enable end
+    if pkt.Billboard then
+        if enable and pkt.Head and pkt.Billboard.Parent ~= pkt.Head then pkt.Billboard.Parent = pkt.Head
+        elseif not enable then pkt.Billboard.Parent = nil end
+    end
+    if not enable then setProxyActive(pkt,false) end
+end
+
+-- Player handling
+local function onPlayerAdded(player)
+    local nameConn = player:GetPropertyChangedSignal("DisplayName"):Connect(function()
+        local pkt = PerPlayer[player]
+        if pkt and pkt.Label then
+            local base = player.DisplayName ~= "" and player.DisplayName or player.Name
+            pkt.Label.Text = pkt.LastShownMeters and (base .. "  [" .. pkt.LastShownMeters .. "m]") or base
+        end
+    end)
+    local charConn = player.CharacterAdded:Connect(function(char)
+        cleanupPlayer(player)
+        task.defer(function() attachForCharacter(player, char); enableESPForPlayer(player, ESPEnabled) end)
+    end)
+    Connections[player] = {nameConn, charConn}
+    if player.Character then attachForCharacter(player, player.Character); enableESPForPlayer(player, ESPEnabled) end
+end
+
+local function onPlayerRemoving(player) cleanupPlayer(player) end
+
+for _, plr in ipairs(Players:GetPlayers()) do if plr ~= LocalPlayer then onPlayerAdded(plr) end end
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+-- Distance update loop (does nothing when ESP is OFF)
+task.spawn(function()
+    while true do
+        task.wait(DISTANCE_TICK)
+        if not ESPEnabled then continue end
+
+        local lpChar = LocalPlayer.Character
+        local lpRoot = lpChar and lpChar:FindFirstChild("HumanoidRootPart")
+        if not lpRoot then continue end
+
+        for plr, pkt in pairs(PerPlayer) do
+            if pkt and pkt.Label and pkt.HRP then
+                local meters = math.floor((lpRoot.Position - pkt.HRP.Position).Magnitude + 0.5)
+                if pkt.LastShownMeters ~= meters then
+                    pkt.LastShownMeters = meters
+                    local base = plr.DisplayName ~= "" and plr.DisplayName or plr.Name
+                    pkt.Label.Text = base .. "  [" .. meters .. "m]"
+                end
+            end
+            if pkt and pkt.Highlight and pkt.CoreParts then
+                local invisible = charInvisible(pkt.CoreParts)
+                if invisible then
+                    if not pkt.ProxyActive then setProxyActive(pkt, true) end
+                    if pkt.ProxyRig and pkt.Highlight.Adornee ~= pkt.ProxyRig then pkt.Highlight.Adornee = pkt.ProxyRig end
+                else
+                    if pkt.Highlight.Adornee ~= pkt.Character then pkt.Highlight.Adornee = pkt.Character end
+                    if pkt.ProxyActive then setProxyActive(pkt,false) end
+                end
+            end
+        end
+    end
+end)
+
+-- Proxy sync
+local proxy_accum = 0
+RunService.Heartbeat:Connect(function(dt)
+    proxy_accum = proxy_accum + dt
+    if proxy_accum < PROXY_TICK then return end
+    proxy_accum = 0
+    for _, pkt in pairs(PerPlayer) do
+        if pkt and pkt.ProxyActive and pkt.ProxyRig and pkt.ProxyMap and pkt.Character then
+            for src, proxyPart in pairs(pkt.ProxyMap) do
+                if src.Parent and proxyPart.Parent then
+                    proxyPart.CFrame = src.CFrame
+                    proxyPart.Size = src.Size
+                end
+            end
+        end
+    end
+end)
+
+-- Base ESP Implementation (Optimized)
+local function setupBaseESP()
+    if not BaseESPEnabled then return end
+    for _, connection in ipairs(BaseESPConnections) do pcall(function() connection:Disconnect() end) end
+    table.clear(BaseESPConnections)
+    for _, g in ipairs(BaseESPGuis) do pcall(function() g.Enabled = false end) end
+    table.clear(BaseESPGuis)
+
+    local Plots = workspace:FindFirstChild("Plots")
+    if not Plots then return end
+
+    local function processPlot(plot)
+        local lowestGui, lowestY = nil, math.huge
+        for _, v in ipairs(plot:GetDescendants()) do
+            if v.Name == "RemainingTime" and v.Parent and v.Parent:IsA("BillboardGui") then
+                local guiObj = v.Parent
+                local y
+                if guiObj.Adornee and guiObj.Adornee:IsA("BasePart") then
+                    y = guiObj.Adornee.Position.Y
+                elseif guiObj.Parent and guiObj.Parent:IsA("BasePart") then
+                    y = guiObj.Parent.Position.Y
+                end
+                if y and y < lowestY then
+                    lowestY = y
+                    lowestGui = guiObj
+                end
+            end
+        end
+        for _, v in ipairs(plot:GetDescendants()) do
+            if v.Name == "RemainingTime" and v.Parent and v.Parent:IsA("BillboardGui") then
+                local guiObj = v.Parent
+                if guiObj == lowestGui then
+                    guiObj.Enabled = true
+                    guiObj.MaxDistance = 99999
+                    guiObj.AlwaysOnTop = true
+                    guiObj.Size = UDim2.new(30, 0, 30, 0)
+                    table.insert(BaseESPGuis, guiObj)
+                else
+                    guiObj.Enabled = false
+                end
+            end
+        end
+    end
+
+    for _, plot in ipairs(Plots:GetChildren()) do processPlot(plot) end
+    local plotAddedConn = Plots.ChildAdded:Connect(function(plot)
+        task.wait(1)
+        processPlot(plot)
+    end)
+    table.insert(BaseESPConnections, plotAddedConn)
+end
+
+local function setBaseESPEnabled(enabled)
+    BaseESPEnabled = enabled
+    setBtn(btnBaseESP, enabled)
+    if enabled then
+        setupBaseESP()
+    else
+        for _, g in ipairs(BaseESPGuis) do pcall(function() g.Enabled = false end) end
+        table.clear(BaseESPGuis)
+        for _, c in ipairs(BaseESPConnections) do pcall(function() c:Disconnect() end) end
+        table.clear(BaseESPConnections)
+    end
+end
+
+btnBaseESP.MouseButton1Click:Connect(function()
+    setBaseESPEnabled(not BaseESPEnabled)
+end)
+
+-- Brainrot ESP (no-flicker)
+local function looksTimerName(name)
+    local n = (type(name)=="string" and string.lower(name) or "")
+    for _, s in ipairs(BR_EXCLUDE_MODEL_SUBSTR) do if string.find(n, s, 1, true) then return true end end
+    return false
+end
+
+local RATE_TEXT_PATS = { "/s","/sec"," per s"," per sec"," per-second"," per second"," p/s","/ 1s"," per 1s" }
+local MIN_TEXT_PATS  = { "/min"," per min"," per-minute"," per minute" }
+local function textLooksRate(t)
+    if type(t) ~= "string" then return false end
+    local l = string.lower(t); for _, p in ipairs(RATE_TEXT_PATS) do if string.find(l,p,1,true) then return true end end
+    for _, p in ipairs(MIN_TEXT_PATS) do if string.find(l,p,1,true) then return true end end
+    return false
+end
+
+local function parseNumSuffix(text)
+    if type(text)~="string" then return nil end
+    local c = text:gsub("%$", ""):gsub(",", ""):gsub("%s",""):gsub("/sec",""):gsub("/s",""):gsub("persecond",""):gsub("persec",""):gsub("/min",""):gsub("perminute","")
+    local n, suf = c:match("([%d%.]+)%s*([KMBTkmbt]?)"); if not n then return nil end
+    local v = tonumber(n); if not v then return nil end
+    suf = (suf or ""):upper()
+    if suf=="K" then v=v*1e3 elseif suf=="M" then v=v*1e6 elseif suf=="B" then v=v*1e9 elseif suf=="T" then v=v*1e12 end
+    return v
+end
+
+local function fmtPerSec(n)
+    n = tonumber(n) or 0
+    if n>=1e12 then return string.format("$%.1fT/s", n/1e12)
+    elseif n>=1e9 then return string.format("$%.1fB/s", n/1e9)
+    elseif n>=1e6 then return string.format("$%.1fM/s", n/1e6)
+    elseif n>=1e3 then return string.format("$%.1fK/s", n/1e3)
+    else return string.format("$%d/s", math.floor(n+0.5)) end
+end
+
+local function findAnyBasePartFrom(inst)
+    if not inst then return nil end
+    if inst:IsA("BasePart") then return inst end
+    if inst:IsA("BillboardGui") then
+        if inst.Adornee and inst.Adornee:IsA("BasePart") then return inst.Adornee end
+        if inst.Parent and inst.Parent:IsA("BasePart") then return inst.Parent end
+    end
+    local model = inst:FindFirstAncestorOfClass("Model") or (inst:IsA("Model") and inst)
+    if model and model:IsA("Model") then
+        if model.PrimaryPart and model.PrimaryPart:IsA("BasePart") then return model.PrimaryPart end
+        for _, d in ipairs(model:GetDescendants()) do if d:IsA("BasePart") then return d end end
+    end
+    local cur = inst.Parent; while cur do if cur:IsA("BasePart") then return cur end; cur = cur.Parent end
+    return nil
+end
+
+local function ensureHighlight()
+    if BR_highlight and BR_highlight.Parent then return BR_highlight end
+    local h = Instance.new("Highlight")
+    h.Name = "TopBrainrotHighlight"; h.FillTransparency = 1; h.OutlineColor = Color3.fromRGB(0,162,255); h.OutlineTransparency = 0
+    h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; h.Enabled = false; h.Parent = workspace
+    BR_highlight = h; return h
+end
+
+local function computeTopWorldPos(modelForBounds, defaultPart)
+    local ok, cf, size = pcall(modelForBounds.GetBoundingBox, modelForBounds)
+    if ok and cf then return cf.Position + Vector3.new(0, size.Y/2 + 1.4, 0) end
+    return defaultPart.Position + Vector3.new(0, 3.5, 0)
+end
+
+local function getOrMakeTopAttachment(modelForBounds, basePart)
+    local att = basePart:FindFirstChild("BR_TopAnchor")
+    if not att then att = Instance.new("Attachment"); att.Name="BR_TopAnchor"; att.Parent = basePart end
+    local world = computeTopWorldPos(modelForBounds, basePart)
+    att.CFrame = basePart.CFrame:ToObjectSpace(CFrame.new(world))
+    return att
+end
+
+local BR_valueNameSet = {}; for _, n in ipairs(BR_VALUE_NAMES) do BR_valueNameSet[n]=true end
+
+local function ensureESP(boundsModel, anchorPart)
+    local gui2 = BR_espByPart[anchorPart]
+    local att = getOrMakeTopAttachment(boundsModel, anchorPart)
+    if gui2 and gui2.Parent then gui2.Adornee = att; return gui2 end
+
+    gui2 = Instance.new("BillboardGui")
+    gui2.Name = BR_GUI_NAME; gui2.AlwaysOnTop = true; gui2.Size = UDim2.new(0, 260, 0, 64); gui2.MaxDistance = 999999; gui2.Adornee = att; gui2.Enabled = false; gui2.Parent = anchorPart
+
+    local frame = Instance.new("Frame"); frame.BackgroundTransparency = 1; frame.Size = UDim2.new(1,0,1,0); frame.Parent = gui2
+    local list = Instance.new("UIListLayout"); list.FillDirection=Enum.FillDirection.Vertical; list.HorizontalAlignment=Enum.HorizontalAlignment.Center; list.VerticalAlignment=Enum.VerticalAlignment.Center; list.Parent = frame
+
+    local title = Instance.new("TextLabel"); title.Name="Title"; title.BackgroundTransparency=1; title.Size = UDim2.new(1,0,0.55,0); title.TextScaled=true; title.Font=Enum.Font.GothamBlack; title.TextColor3=Color3.fromRGB(255,64,64); title.TextStrokeColor3=Color3.new(0,0,0); title.TextStrokeTransparency=0; title.Parent = frame
+    local tStroke = Instance.new("UIStroke"); tStroke.Thickness=1.6; tStroke.Color = Color3.new(0,0,0); tStroke.Parent = title
+
+    local value = Instance.new("TextLabel"); value.Name="Value"; value.BackgroundTransparency=1; value.Size = UDim2.new(1,0,0.45,0); value.TextScaled=true; value.Font=Enum.Font.GothamBlack; value.TextColor3=Color3.fromRGB(255,255,255); value.TextStrokeColor3=Color3.new(0,0,0); value.TextStrokeTransparency=0; value.Parent = frame
+    local vStroke2 = Instance.new("UIStroke"); vStroke2.Thickness=1.6; vStroke2.Color = Color3.new(0,0,0); vStroke2.Parent = value
+
+    BR_espByPart[anchorPart] = gui2
+    return gui2
+end
+
+local function trim(s) s=tostring(s or ""); return s:gsub("^%s+",""):gsub("%s+$","") end
+
+local function nameFromNearbyUI(rateSrc)
+    if not rateSrc then return nil end
+    local container = rateSrc:FindFirstAncestorWhichIsA("BillboardGui") or rateSrc:FindFirstAncestorWhichIsA("GuiObject")
+    local bestText, bestScore
+    local function consider(lbl)
+        if not (lbl and (lbl:IsA("TextLabel") or lbl:IsA("TextBox"))) or lbl==rateSrc then return end
+        local t = trim(lbl.Text); if t=="" or textLooksRate(t) then return end
+        local score = #t; local n = string.lower(lbl.Name or ""); if n=="title" or n=="name" or n=="displayname" then score = score + 100 end
+        if not bestScore or score>bestScore then bestScore, bestText = score, t end
+    end
+    if container then for _, d in ipairs(container:GetDescendants()) do if d:IsA("TextLabel") or d:IsA("TextBox") then consider(d) end end end
+    return bestText
+end
+
+local function computeEPSAndSource(root)
+    local best, src, srcType, srcKey = 0, nil, nil, nil
+    for _, nm in ipairs(BR_VALUE_NAMES) do local ok, v = pcall(function() return root:GetAttribute(nm) end); if ok and type(v)=="number" and v>best then best,src,srcType,srcKey=v,root,"attr",nm end end
+    for _, nm in ipairs(BR_PER_MINUTE_NAMES) do local ok, v = pcall(function() return root:GetAttribute(nm) end); if ok and type(v)=="number" and (v/60)>best then best,src,srcType,srcKey=v/60,root,"attrmin",nm end end
+    for _, d in ipairs(root:GetDescendants()) do
+        if d:IsA("NumberValue") or d:IsA("IntValue") then
+            if BR_valueNameSet[d.Name] then local v = tonumber(d.Value); if v and v>best then best,src,srcType,srcKey=v,d,"num",nil end
+            elseif d.Name:match("PerMinute") then local v=tonumber(d.Value); if v and (v/60)>best then best,src,srcType,srcKey=v/60,d,"num",nil end end
+        elseif d:IsA("TextLabel") or d:IsA("TextBox") then
+            if not BR_EXCLUDE_LABEL_NAMES[d.Name] then
+                local t=d.Text; if type(t)=="string" and t~="" and textLooksRate(t) then
+                    local v = parseNumSuffix(t); if v then local l=string.lower(t); if l:find("/min",1,true) or l:find("per min",1,true) or l:find("per minute",1,true) or l:find("per%-minute") then v=v/60 end
+                        if v>best then best,src,srcType,srcKey=v,d,"text",nil end
+                    end
+                end
+            end
+        end
+    end
+    return best, src, srcType, srcKey
+end
+
+local function deriveDisplayName(root, rateSrc)
+    for _, key in ipairs({"BrainrotName","DisplayName","Name"}) do local ok,v=pcall(function() return root:GetAttribute(key) end); if ok and type(v)=="string" then local t=trim(v); if t~="" then return t end end end
+    local near = nameFromNearbyUI(rateSrc); if near and near~="" then return near end
+    for _, d in ipairs(root:GetChildren()) do if d:IsA("StringValue") then local n=string.lower(d.Name); if n=="name" or n=="displayname" or n=="title" then local t=trim(d.Value); if t~="" then return t end end end end
+    return root.Name or "Brainrot"
+end
+
+local function getAnchorModelFromRateSrc(rateSrc, fallbackModel)
+    if not rateSrc then return fallbackModel end
+    local gui2 = rateSrc:FindFirstAncestorWhichIsA("BillboardGui")
+    if gui2 then
+        local bp = (gui2.Adornee and gui2.Adornee:IsA("BasePart") and gui2.Adornee) or (gui2.Parent and gui2.Parent:IsA("BasePart") and gui2.Parent)
+        if bp then local m = bp:FindFirstAncestorOfClass("Model"); if m then return m end end
+    end
+    return fallbackModel
+end
+
+local function retargetPlacement(rec)
+    local anchorModel = getAnchorModelFromRateSrc(rec.rateSrc, rec.root) or rec.root
+    local anchorPart  = findAnyBasePartFrom(rec.rateSrc) or (anchorModel.PrimaryPart or findAnyBasePartFrom(anchorModel)) or rec.part
+    rec.anchorModel, rec.anchorPart = anchorModel, anchorPart
+end
+
+local function setBrainrotESP(rec)
+    for p, g in pairs(BR_espByPart) do
+        if g and g.Parent then
+            g.Enabled = false
+        else
+            BR_espByPart[p] = nil
+        end
+    end
+    local gui2 = ensureESP(rec.anchorModel, rec.anchorPart)
+    local title = gui2:FindFirstChild("Title", true); if title then title.Text = tostring(rec.name or "Brainrot") end
+    local value = gui2:FindFirstChild("Value", true); if value then value.Text = fmtPerSec(rec.eps or 0) end
+    gui2.Enabled = BR_Enabled and BR_visualsArmed
+    local h = ensureHighlight()
+    h.Adornee = rec.anchorModel
+    h.Enabled = BR_Enabled and BR_visualsArmed
+end
+
+-- Immediate recompute (no delay, used on toggle ON to avoid flicker)
+local function BR_recomputeTopImmediate()
+    local now2 = os.clock()
+    for i = #BR_candidateList, 1, -1 do
+        local rec = BR_candidateList[i]
+        if not (rec.root and rec.root.Parent) or ((rec.lastUpdate and (now2 - rec.lastUpdate > BR_STALE_TTL)) and (rec.eps or 0) <= 0) then
+            if rec.srcConn then pcall(function() rec.srcConn:Disconnect() end) end
+            BR_candidatesByRoot[rec.root] = nil
+            table.remove(BR_candidateList, i)
+        end
+    end
+    local myId = LocalPlayer and LocalPlayer.UserId or -1
+    local best = nil
+    for _, rec in ipairs(BR_candidateList) do
+        if rec.root and rec.root.Parent and (rec.eps or 0) > 0 then
+            if rec.ownerUserId == nil or rec.ownerUserId ~= myId then
+                if (not best) or (rec.eps or 0) > (best.eps or 0) then best = rec end
+            end
+        end
+    end
+    BR_currentTop = best
+    if best then
+        retargetPlacement(best)
+        if BR_visualsArmed and BR_Enabled then
+            setBrainrotESP(best)
+        end
+    else
+        if BR_highlight then BR_highlight.Enabled=false; BR_highlight.Adornee=nil end
+        for _, g in pairs(BR_espByPart) do if g and g.Parent then g.Enabled=false end end
+    end
+end
+
+local function BR_queueRecomputeTop()
+    if not BR_Enabled then return end
+    if BR_recomputeQueued then return end
+    local now = os.clock(); BR_recomputeQueued = true
+    task.delay(math.max(0, BR_nextRecomputeAt - now), function()
+        BR_recomputeQueued = false; BR_nextRecomputeAt = os.clock() + BR_RECOMPUTE_DELAY
+        if not BR_Enabled then return end
+        BR_recomputeTopImmediate()
+        if BR_currentTop and BR_visualsArmed and BR_Enabled then
+            setBrainrotESP(BR_currentTop)
+        end
+    end)
+end
+
+local function attachSourceWatcher(rec)
+    if rec.srcConn then pcall(function() rec.srcConn:Disconnect() end) end; rec.srcConn = nil
+    local function refresh()
+        if not BR_Enabled then return end
+        rec.eps, rec.rateSrc, rec.srcType, rec.srcKey = computeEPSAndSource(rec.root)
+        rec.name = deriveDisplayName(rec.root, rec.rateSrc)
+        rec.lastUpdate = os.clock()
+        BR_queueRecomputeTop()
+    end
+    if rec.srcType == "attr" or rec.srcType == "attrmin" then
+        local ok, sig = pcall(function() return rec.root:GetAttributeChangedSignal(rec.srcKey) end)
+        if ok and sig then rec.srcConn = sig:Connect(refresh) end
+    elseif rec.srcType == "num" then
+        if rec.rateSrc and rec.rateSrc.Parent then rec.srcConn = rec.rateSrc:GetPropertyChangedSignal("Value"):Connect(refresh) end
+    elseif rec.srcType == "text" then
+        if rec.rateSrc and rec.rateSrc.Parent then rec.srcConn = rec.rateSrc:GetPropertyChangedSignal("Text"):Connect(refresh) end
+    end
+end
+
+local function BR_connectRootSignals(rec)
+    rec.conns = rec.conns or {}
+    table.insert(rec.conns, rec.root.DescendantAdded:Connect(function(d)
+        if not BR_Enabled then return end
+        if d:IsA("NumberValue") or d:IsA("IntValue") or d:IsA("TextLabel") or d:IsA("TextBox") or d:IsA("ObjectValue") then
+            rec.eps, rec.rateSrc, rec.srcType, rec.srcKey = computeEPSAndSource(rec.root)
+            rec.name = deriveDisplayName(rec.root, rec.rateSrc)
+            rec.lastUpdate = os.clock()
+            attachSourceWatcher(rec)
+            BR_queueRecomputeTop()
+        end
+    end))
+    table.insert(rec.conns, rec.root.DescendantRemoving:Connect(function(d)
+        if not BR_Enabled then return end
+        if d == rec.rateSrc or d:IsA("ObjectValue") then
+            rec.eps, rec.rateSrc, rec.srcType, rec.srcKey = computeEPSAndSource(rec.root)
+            rec.name = deriveDisplayName(rec.root, rec.rateSrc)
+            rec.lastUpdate = os.clock()
+            attachSourceWatcher(rec)
+            BR_queueRecomputeTop()
+        end
+    end))
+    table.insert(rec.conns, rec.root.AncestryChanged:Connect(function()
+        if not rec.root:IsDescendantOf(workspace) then
+            if rec.srcConn then pcall(function() rec.srcConn:Disconnect() end) end
+            BR_candidatesByRoot[rec.root] = nil
+            for i=#BR_candidateList,1,-1 do if BR_candidateList[i]==rec then table.remove(BR_candidateList,i) break end end
+            if BR_currentTop == rec then BR_currentTop=nil end
+            BR_queueRecomputeTop()
+        end
+    end))
+    attachSourceWatcher(rec)
+end
+
+local function detectOwnerUserId(root)
+    local function idFrom(inst)
+        if not inst then return nil end
+        for _, k in ipairs(OWNER_ATTR_UID_KEYS) do local v = inst:GetAttribute(k); if type(v)=="number" and v>0 then return v end end
+        for _, k in ipairs(OWNER_ATTR_NAME_KEYS) do local v = inst:GetAttribute(k); if type(v)=="string" and #v>0 then local p = Players:FindFirstChild(v); if p then return p.UserId end end end
+        for _, k in ipairs(OWNER_OBJ_KEYS) do local o=inst:FindFirstChild(k); if o and o:IsA("ObjectValue") and o.Value and o.Value:IsA("Player") then return o.Value.UserId end end
+        return nil
+    end
+    local cur, hop = root, 0
+    while cur and hop < 6 do
+        local id = idFrom(cur)
+        if id then return id end
+        cur = cur.Parent
+        hop = hop + 1
+    end
+    return nil
+end
+
+local function BR_registerRoot(root)
+    if not root or BR_candidatesByRoot[root] or looksTimerName(root.Name) then return end
+    local part = findAnyBasePartFrom(root); if not part then return end
+    local eps, src, srcType, srcKey = computeEPSAndSource(root); if not src then return end
+    local rec = { root=root, part=part, eps=eps or 0, rateSrc=src, srcType=srcType, srcKey=srcKey, name=deriveDisplayName(root, src), ownerUserId=detectOwnerUserId(root), conns={}, srcConn=nil, lastUpdate=os.clock(), anchorModel=nil, anchorPart=nil }
+    retargetPlacement(rec)
+    BR_candidatesByRoot[root]=rec; table.insert(BR_candidateList, rec)
+    BR_connectRootSignals(rec)
+end
+
+local function BR_tryRegisterFromGui(gui2)
+    if not gui2 or not gui2:IsA("BillboardGui") or looksTimerName(gui2.Name) then return end
+    local hasRate=false
+    for _, d in ipairs(gui2:GetDescendants()) do
+        if (d:IsA("TextLabel") or d:IsA("TextBox")) and not BR_EXCLUDE_LABEL_NAMES[d.Name] and textLooksRate(d.Text) then hasRate=true break end
+    end
+    if not hasRate then return end
+    local anchor = findAnyBasePartFrom(gui2); if not anchor then return end
+    local root = anchor:FindFirstAncestorOfClass("Model"); if not root then return end
+    BR_registerRoot(root)
+end
+
+local function BR_initialScan(searchRoot)
+    local seenModel = {}
+    for _, inst in ipairs(searchRoot:GetDescendants()) do
+        if inst:IsA("BillboardGui") then
+            BR_tryRegisterFromGui(inst)
+        elseif inst:IsA("Model") and not seenModel[inst] and not looksTimerName(inst.Name) then
+            seenModel[inst] = true
+            local _, src = computeEPSAndSource(inst)
+            if src then BR_registerRoot(inst) end
+        end
+    end
+end
+
+local function BR_startIncremental(root)
+    local conns = {}
+    conns[#conns+1] = root.DescendantAdded:Connect(function(inst)
+        if not BR_Enabled then return end
+        if inst:IsA("BillboardGui") then
+            BR_tryRegisterFromGui(inst)
+            BR_queueRecomputeTop()
+        elseif inst:IsA("Model") and not looksTimerName(inst.Name) then
+            local _, src = computeEPSAndSource(inst)
+            if src then BR_registerRoot(inst); BR_queueRecomputeTop() end
+        end
+    end)
+    conns[#conns+1] = root.DescendantRemoving:Connect(function(inst)
+        local r = inst:IsA("Model") and inst or inst:FindFirstAncestorOfClass("Model")
+        if r and BR_candidatesByRoot[r] then
+            local rec = BR_candidatesByRoot[r]; if rec.srcConn then pcall(function() rec.srcConn:Disconnect() end) end
+            BR_candidatesByRoot[r]=nil; for i=#BR_candidateList,1,-1 do if BR_candidateList[i]==rec then table.remove(BR_candidateList,i) break end end
+            if BR_currentTop == rec then BR_currentTop=nil end
+            BR_queueRecomputeTop()
+        end
+    end)
+    return conns
+end
+
+local function BR_teardown()
+    BR_run = false
+    if BR_watchThread then BR_watchThread = nil end
+    for _, c in ipairs(BR_globalConns) do pcall(function() c:Disconnect() end) end
+    BR_globalConns = {}
+    for _, rec in ipairs(BR_candidateList) do
+        if rec.srcConn then pcall(function() rec.srcConn:Disconnect() end) end
+        if rec.conns then for _,c in ipairs(rec.conns) do pcall(function() c:Disconnect() end) end end
+    end
+    table.clear(BR_candidateList)
+    table.clear(BR_candidatesByRoot)
+    for _, g in pairs(BR_espByPart) do if g and g.Destroy then pcall(function() g:Destroy() end) end end
+    table.clear(BR_espByPart)
+    if BR_highlight then pcall(function() BR_highlight:Destroy() end); BR_highlight = nil end
+    BR_currentTop = nil
+    BR_initialized = false
+    BR_visualsArmed = false
+end
+
+-- Start Brainrot with synchronous scan + immediate top pick (no flicker)
+local function BR_initNoFlicker()
+    if BR_initialized then return end
+    BR_initialized = true
+    local searchRoot = workspace:FindFirstChild("Plots") or workspace
+
+    BR_initialScan(searchRoot)           -- synchronous
+    BR_recomputeTopImmediate()           -- compute best silently
+
+    BR_globalConns = BR_startIncremental(searchRoot)
+
+    BR_run = true
+    BR_watchThread = task.spawn(function()
+        while BR_run do
+            task.wait(BR_WATCHDOG_TICK)
+            if not BR_Enabled then continue end
+            for p, g in pairs(BR_espByPart) do if (not p) or (not p.Parent) or (not g.Parent) then BR_espByPart[p]=nil end end
+            if not BR_currentTop then
+                BR_queueRecomputeTop()
+            else
+                local top = BR_currentTop
+                if (not top.root) or (not top.root.Parent) then
+                    BR_currentTop=nil; BR_queueRecomputeTop()
+                else
+                    local epsNow, srcNow, typeNow, keyNow = computeEPSAndSource(top.root)
+                    if (epsNow or 0) <= 0 then
+                        BR_currentTop=nil; BR_queueRecomputeTop()
+                    else
+                        if srcNow ~= top.rateSrc or typeNow ~= top.srcType or keyNow ~= top.srcKey then
+                            top.eps, top.rateSrc, top.srcType, top.srcKey = epsNow, srcNow, typeNow, keyNow
+                            top.name = deriveDisplayName(top.root, top.rateSrc); top.ownerUserId = detectOwnerUserId(top.root) or top.ownerUserId; top.lastUpdate = os.clock(); attachSourceWatcher(top)
+                        else
+                            top.eps = epsNow; top.lastUpdate = os.clock()
+                        end
+                        if LocalPlayer and top.ownerUserId == LocalPlayer.UserId then
+                            BR_currentTop=nil; BR_queueRecomputeTop()
+                        else
+                            retargetPlacement(top)
+                            if BR_visualsArmed and BR_Enabled then
+                                setBrainrotESP(top)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- Toggle (no flicker on ON)
+local function setBrainrotEnabled(enabled)
+    setBtn(btnBrainrot, enabled)
+    if enabled then
+        BR_visualsArmed = false
+        BR_Enabled = true
+        BR_initNoFlicker()
+        BR_visualsArmed = true
+        BR_recomputeTopImmediate()
+        if BR_currentTop then setBrainrotESP(BR_currentTop) end
+    else
+        BR_Enabled = false
+        BR_teardown()
+    end
+end
+
+btnBrainrot.MouseButton1Click:Connect(function()
+    setBrainrotEnabled(not BR_Enabled)
+end)
+
+_G.Brainrot_SetEnabled = setBrainrotEnabled
+
+-- ESP Toggle (true OFF at spawn)
+local function setESPEnabled(on)
+    ESPEnabled = on
+    setBtn(btnESP, ESPEnabled)
+    for plr in pairs(PerPlayer) do enableESPForPlayer(plr, ESPEnabled) end
+end
+
+btnESP.MouseButton1Click:Connect(function() setESPEnabled(not ESPEnabled) end)
+setBtn(btnESP, false)
+
+-- Steal Toggle (robust loader with proper unload handling)
+local STEAL_Enabled = false
+local steal = { active=false, unloader=nil }
+
+local function stealLoad()
+    local ok, src = pcall(function() return game:HttpGet("https://api.luarmor.net/files/v3/loaders/a0616cb9bb3fd3136fd3b2cb3c5c74ee.lua") end)
+    if not ok or type(src) ~= "string" then return false end
+    local fn = loadstring(src)
+    if not fn then return false end
+    local ret
+    local ok2 = pcall(function() ret = fn() end)
+    if not ok2 then return false end
+    local un = nil
+    if typeof(ret) == "function" then
+        un = ret
+    elseif type(ret) == "table" then
+        if type(ret.Unload) == "function" then un = function() pcall(ret.Unload, ret) end
+        elseif type(ret.Destroy) == "function" then un = function() pcall(ret.Destroy, ret) end
+        elseif type(ret.Stop) == "function" then un = function() pcall(ret.Stop, ret) end
+        end
+    end
+    if not un and type(_G.LUARMOR_UNLOAD) == "function" then un = _G.LUARMOR_UNLOAD end
+    steal.unloader = un
+    steal.active = true
+    return true
+end
+
+local function stealUnload()
+    if steal.unloader then pcall(steal.unloader) end
+    steal.unloader = nil
+    steal.active = false
+end
+
+local function setSteal(on)
+    if on == STEAL_Enabled then return end
+    STEAL_Enabled = on
+    setBtn(btnSteal, on)
+    if on then
+        if not steal.active then
+            local ok = stealLoad()
+            if not ok then
+                STEAL_Enabled = false
+                setBtn(btnSteal, false)
+            end
+        end
+    else
+        if steal.active then stealUnload() end
+    end
+end
+
+btnSteal.MouseButton1Click:Connect(function() setSteal(not STEAL_Enabled) end)
+setBtn(btnSteal, false)
+_G.SetStealEnabled = setSteal
+
+-- Aimbot (simplified)
+local AIM_Enabled = false
+local aim = {toolConns = {}}
+
+local function GetClosestTorso()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+    local bestTorso, bestDist = nil, math.huge
+    local myPos = myRoot.Position
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            local their = plr.Character
+            if their then
+                local torso = their:FindFirstChild("UpperTorso") or their:FindFirstChild("Torso")
+                local theirRoot = their:FindFirstChild("HumanoidRootPart")
+                if torso and theirRoot then
+                    local d = (theirRoot.Position - myPos).Magnitude
+                    if d < bestDist then bestTorso, bestDist = torso, d end
+                end
+            end
+        end
+    end
+    return bestTorso
+end
+
+local function bindTool(tool)
+    if not AIM_Enabled or aim.toolConns[tool] then return end
+    local actConn = tool.Activated:Connect(function()
+        if not AIM_Enabled then return end
+        local targetTorso = GetClosestTorso()
+        if not targetTorso then return end
+        local remote = ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Net")
+            and ReplicatedStorage.Packages.Net:FindFirstChild("RE/UseItem")
+        if remote then
+            pcall(remote.FireServer, remote, targetTorso.CFrame.Position, targetTorso)
+        end
+    end)
+    aim.toolConns[tool] = actConn
+end
+
+local function setAimbot(on)
+    AIM_Enabled = on
+    setBtn(btnAimbot, on)
+    if on then
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        if backpack then
+            for _, item in ipairs(backpack:GetChildren()) do
+                if item:IsA("Tool") then bindTool(item) end
+            end
+        end
+        if LocalPlayer.Character then
+            for _, item in ipairs(LocalPlayer.Character:GetChildren()) do
+                if item:IsA("Tool") then bindTool(item) end
+            end
+        end
+    else
+        for _, conn in pairs(aim.toolConns) do pcall(function() conn:Disconnect() end) end
+        table.clear(aim.toolConns)
+    end
+end
+
+btnAimbot.MouseButton1Click:Connect(function() setAimbot(not AIM_Enabled) end)
+setBtn(btnAimbot, false)
+
+-- Initialize button states (all OFF)
+setBtn(btnBaseESP, false)
+setBtn(btnBrainrot, false)
+for plr in pairs(PerPlayer) do enableESPForPlayer(plr, false) end
+end
 
